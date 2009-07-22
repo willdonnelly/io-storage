@@ -1,0 +1,31 @@
+name:          io-storage
+version:       0.1
+category:      Development
+synopsis:      A key-value store in the IO monad.
+
+description:   Conceptually, this allows programs to store data 'in the aether',
+               inside the IO monad. This allows, for example, libraries to keep
+               internal data completely internal, without the application ever
+               knowing it's there. Since, realistically, this library simply
+               stores its data in files on disk, it requires that values be
+               members of the 'Read' and 'Show' typeclasses.
+
+homepage:      http://github.com/willdonnelly/io-storage
+bug-reports:   http://github.com/willdonnelly/io-storage/issues
+stability:     alpha
+author:        Will Donnelly
+maintainer:    Will Donnelly <will.donnelly@gmail.com>
+copyright:     (c) 2009 Will Donnelly
+license:       BSD3
+license-file:  LICENSE
+
+build-type:    Simple
+cabal-version: >= 1.6
+
+library
+  exposed-modules: System.IO.Storage
+  build-depends:   base >= 4 && < 5, unix, directory, filepath
+
+source-repository head
+  type:      git
+  location:  git://github.com/willdonnelly/io-storage.git

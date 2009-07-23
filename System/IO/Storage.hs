@@ -30,10 +30,11 @@ import System.IO            ( readFile, writeFile )
 import System.IO.Error      ( try )
 import System.FilePath      ( (</>) )
 import System.Directory     ( getTemporaryDirectory, createDirectoryIfMissing
-                            , doesFileExist, removeDirectoryRecursive
-                            , removeFile )
+                            , doesFileExist, getDirectoryContents, removeFile
+                            , removeDirectory, removeDirectoryRecursive )
 import System.Environment   ( getProgName )
 import System.Posix.Process ( getProcessID )
+import Data.List            ( (\\) )
 
 -- | We generate the storage path from the program name combined
 --   with the PID. We basically just have to hope we don't get
@@ -42,10 +43,9 @@ getStoragePath :: String -> IO String
 getStoragePath db = do
     progName <- getProgName
     procID   <- getProcessID
-    let fullName = "kv-store" </> progName ++ "-" ++ (show procID)
+    let fullName = "kv-store" ++ "-" ++ progName ++ "-" ++ (show procID)
     tempPath <- getTemporaryDirectory
     return $ tempPath </> fullName </> db
-
 
 -- | Stores a value
 putValue :: Show a => String -> String -> a -> IO ()
@@ -86,3 +86,10 @@ clearAll db = do
     kvDir <- getStoragePath db
     createDirectoryIfMissing True kvDir
     removeDirectoryRecursive kvDir
+
+    -- Remove the program storage if necessary
+    progStorage <- getStoragePath ""
+    contents <- getDirectoryContents progStorage
+    if null $ contents \\ [".", ".."]
+       then removeDirectory progStorage
+       else return ()

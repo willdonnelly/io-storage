@@ -24,6 +24,7 @@ module System.IO.Storage
     , getValue
     , delValue
     , clearAll
+    , getValueDefault
     ) where
 
 import System.IO            ( readFile, writeFile )
@@ -35,6 +36,7 @@ import System.Directory     ( getTemporaryDirectory, createDirectoryIfMissing
 import System.Environment   ( getProgName )
 import System.Posix.Process ( getProcessID )
 import Data.List            ( (\\) )
+import Data.Maybe           ( fromMaybe )
 
 -- | We generate the storage path from the program name combined
 --   with the PID. We basically just have to hope we don't get
@@ -68,6 +70,9 @@ getValue db key = do
                     Left  _ -> return $ Nothing
                     Right v -> return $ Just v
        else return Nothing
+
+getValueDefault :: Read a => a -> String -> String -> IO a
+getValueDefault v db key = fmap (fromMaybe v) (getValue db key)
 
 -- | Delete a value from the store.
 delValue :: String -> String -> IO ()

@@ -19,6 +19,7 @@ after using a store, as a precaution against the (very unlikely) situation
 where a program manages to access ghost data from a previous invocation.
 
 -}
+{-# LANGUAGE CPP #-}
 module System.IO.Storage
     ( putValue
     , getValue
@@ -34,20 +35,32 @@ import System.Directory     ( getTemporaryDirectory, createDirectoryIfMissing
                             , doesFileExist, getDirectoryContents, removeFile
                             , removeDirectory, removeDirectoryRecursive )
 import System.Environment   ( getProgName )
-import System.Posix.Process ( getProcessID )
 import Data.List            ( (\\) )
 import Data.Maybe           ( fromMaybe )
+
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+
+getIdentifier = do progName <- getProgName
+                   return . stripChars $ "kv-store-" ++ progName ++ "-pid-hack"
+  where stripChars = filter (not . (`elem`"<>"))
+
+#else
+
+import System.Posix.Process ( getProcessID )
+getIdentifier = do progName <- getProgName
+                   procID   <- getProcessID
+                   return $ "kv-store-" ++ progName ++ "-" ++ procID
+
+#endif
 
 -- | We generate the storage path from the program name combined
 --   with the PID. We basically just have to hope we don't get
 --   the same *both* before the temp dir gets cleared.
 getStoragePath :: String -> IO String
 getStoragePath db = do
-    progName <- getProgName
-    procID   <- getProcessID
-    let fullName = "kv-store" ++ "-" ++ progName ++ "-" ++ (show procID)
+    identifier <- getIdentifier
     tempPath <- getTemporaryDirectory
-    return $ tempPath </> fullName </> db
+    return $ tempPath </> identifier </> db
 
 -- | Stores a value
 putValue :: Show a => String -> String -> a -> IO ()

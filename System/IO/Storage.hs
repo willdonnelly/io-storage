@@ -20,6 +20,8 @@ where a program manages to access ghost data from a previous invocation.
 
 -}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+
 module System.IO.Storage
     ( putValue
     , getValue
@@ -40,18 +42,29 @@ import Data.Maybe           ( fromMaybe )
 
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 
-getIdentifier = do progName <- getProgName
-                   return . stripChars $ "kv-store-" ++ progName ++ "-pid-hack"
-  where stripChars = filter (not . (`elem`"<>"))
+import System.Win32 ( DWORD )
+-- This can be removed as soon as a 'getProcessID' function
+-- gets added to 'System.Win32'
+foreign import stdcall unsafe "winbase.h GetCurrentProcessId"
+    c_GetCurrentProcessID :: IO DWORD
+
+getPIDString = fmap show c_GetCurrentProcessID
+specialChars = "<>"
 
 #else
 
 import System.Posix.Process ( getProcessID )
-getIdentifier = do progName <- getProgName
-                   procID   <- getProcessID
-                   return $ "kv-store-" ++ progName ++ "-" ++ procID
+getPIDString = fmap show getProcessID
+specialChars = ""
 
 #endif
+
+getIdentifier = do
+    progName <- getProgName
+    procID   <- getPIDString
+    let idName = "kv-store-" ++ progName ++ "-" ++ procID
+    return . stripSpecials $ idName
+  where stripSpecials = filter $ not . (`elem` specialChars)
 
 -- | We generate the storage path from the program name combined
 --   with the PID. We basically just have to hope we don't get

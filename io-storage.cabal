@@ -1,12 +1,12 @@
 name:          io-storage
-version:       0.1
+version:       0.2
 category:      Development
 synopsis:      A key-value store in the IO monad.
 
 description:   This library allows an application to extend the 'global state'
-               hidden inside the IO monad with semi-arbitrary data. The data
-               has to be 'Read' and 'Show'-able, because it's really just
-               stored in a convenient temporary directory on disk.
+               hidden inside the IO monad with semi-arbitrary data. It provides
+               two backends, so data can either be stored on disk, or stored
+               inside an IORef made global with the 'unsafePerformIO hack'.
 
 homepage:      http://github.com/willdonnelly/io-storage
 bug-reports:   http://github.com/willdonnelly/io-storage/issues
@@ -22,8 +22,10 @@ cabal-version: >= 1.6
 
 library
   exposed-modules: System.IO.Storage,
-                   System.IO.Storage.Internals
-  build-depends:   base >= 4 && < 5, directory, filepath
+                   System.IO.Storage.Memory,
+                   System.IO.Storage.FileSystem,
+                   System.IO.Storage.FileSystem.Internals
+  build-depends:   base >= 4 && < 5, directory, filepath, containers
   if os(windows)
       build-depends: Win32
   else

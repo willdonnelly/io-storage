@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module System.IO.Storage.Internals where
+module System.IO.Storage.FileSystem.Internals where
 
 import System.Environment   ( getProgName )
 import System.FilePath      ( (</>) )

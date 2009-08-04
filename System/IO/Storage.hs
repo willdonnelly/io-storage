@@ -29,6 +29,7 @@ module System.IO.Storage
   , getValue
   , putValue
   , delValue
+  , getDefaultValue
   ) where
 
 import System.IO.Storage.Memory

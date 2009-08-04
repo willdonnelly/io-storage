@@ -3,12 +3,13 @@ module System.IO.Storage.Memory
   , getValue
   , putValue
   , delValue
+  , getDefaultValue
   ) where
 
 import Data.IORef        ( IORef, newIORef, modifyIORef, readIORef )
 import Data.List as L    ( lookup, deleteFirstsBy )
 import Data.Map as M     ( Map, empty, lookup, insert, delete )
-import Data.Dynamic      ( Dynamic, toDyn, fromDynamic )
+import Data.Dynamic      ( Dynamic, toDyn, fromDyn, fromDynamic )
 import Data.Function     ( on )
 import Control.Exception ( bracket )
 import System.IO.Unsafe  ( unsafePerformIO )
@@ -29,14 +30,21 @@ withStore storeName action = do
   where deleteStore xs = deleteFirstsBy ((==) `on` fst) xs dummyStore
         dummyStore = [(storeName, undefined)]
 
-getValue storeName key = do
+getPrimitive :: String -> String -> IO (Maybe Dynamic)
+getPrimitive storeName key = do
     storeList <- readIORef globalPeg
     case storeName `L.lookup` storeList of
-         Nothing -> return $ Nothing
+         Nothing -> return Nothing
          Just st -> do map <- readIORef st
-                       case key `M.lookup` map of
-                            Nothing -> return $ Nothing
-                            Just dy -> return $ fromDynamic dy
+                       return $ key `M.lookup` map
+
+getValue storeName key = do
+    value <- getPrimitive storeName key
+    return . fmap fromDynamic $ value
+
+getDefaultValue storeName key val = do
+    value <- getPrimitive storeName key
+    return . fmap (fromDyn val) $ value
 
 putValue storeName key value = do
     storeList <- readIORef globalPeg

@@ -3,12 +3,10 @@ version:       0.1
 category:      Development
 synopsis:      A key-value store in the IO monad.
 
-description:   Conceptually, this allows programs to store data 'in the aether',
-               inside the IO monad. This allows, for example, libraries to keep
-               internal data completely internal, without the application ever
-               knowing it's there. Since, realistically, this library simply
-               stores its data in files on disk, it requires that values be
-               members of the 'Read' and 'Show' typeclasses.
+description:   This library allows an application to extend the 'global state'
+               hidden inside the IO monad with semi-arbitrary data. The data
+               has to be 'Read' and 'Show'-able, because it's really just
+               stored in a convenient temporary directory on disk.
 
 homepage:      http://github.com/willdonnelly/io-storage
 bug-reports:   http://github.com/willdonnelly/io-storage/issues
@@ -23,7 +21,8 @@ build-type:    Simple
 cabal-version: >= 1.6
 
 library
-  exposed-modules: System.IO.Storage
+  exposed-modules: System.IO.Storage,
+                   System.IO.Storage.Internals
   build-depends:   base >= 4 && < 5, unix, directory, filepath
 
 source-repository head

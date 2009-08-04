@@ -1,126 +1,78 @@
 {- |
+Conceptually, this library provides a way to arbitrarily extend the
+global state represented by the IO monad. Viewed another way, this
+library provides a basic facility for setting and retrieving values
+from global variables. In what some people call 'the real world',
+this library simply tosses data into a bunch of files on disk.
 
-Conceptually, this library embeds a very basic key-value store
-in the IO monad. Realistically, it does this by means of a
-temporary directory holding files.
+The interface takes the form of a very basic key-value store, with
+multiple different stores made available through the 'withStore'
+function. Stores are referenced by arbitrary strings, and keys
+within those stores are treated likewise.
 
-The API is almost too simple to bother mentioning. All operations
-take a string 'Store Name', which is a namespace for keys. Keys are
-always strings, and values must be members of the 'Read' and 'Show'
-yypeclasses. Supported operations include storing data, getting data,
-deleting keys, and destroying an entire store.
+The 'putValue', 'getValue', and 'delValue' functions allow you to
+store, retrieve, and delete data from the store. Since the data is
+essentially stored as text, it is regrettably necessary to require
+that you only store data which is a member of the 'Read' and 'Show'
+typeclasses.
 
-One thing to note is that the 'getValue' operation is designed to return
-'IO Nothing' rather than ever allow an exception to escape. That means
-that a read error will manifest as your application recieving 'Nothing'.
+Some actions can result in the immediate exit of the entire program,
+such as 'executeFile', for example. This will leave a lonely little
+directory sitting around in your '/tmp' or equivalent. There is a
+roughly 0% chance of ever seeing duplicate data from this, but if it
+offends your aesthetics too much, you can go ahead and clean it up
+using the 'deleteStore' function from 'System.IO.Storage.Internals'
 
-It is recommended that programs take care to call 'clearAll' before or
-after using a store, as a precaution against the (very unlikely) situation
-where a program manages to access ghost data from a previous invocation.
-
+If you find this library useful, please help lobby for a feature like
+this to be added directly to Haskell. Hopefully that would allow us
+to dispense with the annoying 'Read' and 'Show' requirements, as well
+as (hopefully) allowing typechecking.
 -}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-
 module System.IO.Storage
-    ( putValue
-    , getValue
-    , delValue
-    , clearAll
-    , getValueDefault
-    ) where
+  ( withStore
+  , putValue
+  , getValue
+  , delValue
+  ) where
 
 import System.IO            ( readFile, writeFile )
 import System.IO.Error      ( try )
+import System.Directory     ( doesFileExist, removeFile )
 import System.FilePath      ( (</>) )
-import System.Directory     ( getTemporaryDirectory, createDirectoryIfMissing
-                            , doesFileExist, getDirectoryContents, removeFile
-                            , removeDirectory, removeDirectoryRecursive )
-import System.Environment   ( getProgName )
-import Data.List            ( (\\) )
-import Data.Maybe           ( fromMaybe )
+import Control.Exception    ( bracket )
 
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import System.IO.Storage.Internals ( getStoragePath, createStore, deleteStore )
 
-import System.Win32 ( DWORD )
--- This can be removed as soon as a 'getProcessID' function
--- gets added to 'System.Win32'
-foreign import stdcall unsafe "winbase.h GetCurrentProcessId"
-    c_GetCurrentProcessID :: IO DWORD
+-- | Initialize a key-value store with the given name.
+--   attempting to use any of the other functions on a
+--   store that hasn't been initialized will probably
+--   cause everything to explode horribly.
+withStore :: String -> IO a -> IO a
+withStore storeName action = bracket create delete $ const action
+  where create = createStore storeName
+        delete = const $ deleteStore storeName
 
-getPIDString = fmap show c_GetCurrentProcessID
-specialChars = "<>"
-
-#else
-
-import System.Posix.Process ( getProcessID )
-getPIDString = fmap show getProcessID
-specialChars = ""
-
-#endif
-
-getIdentifier = do
-    progName <- getProgName
-    procID   <- getPIDString
-    let idName = "kv-store-" ++ progName ++ "-" ++ procID
-    return . stripSpecials $ idName
-  where stripSpecials = filter $ not . (`elem` specialChars)
-
--- | We generate the storage path from the program name combined
---   with the PID. We basically just have to hope we don't get
---   the same *both* before the temp dir gets cleared.
-getStoragePath :: String -> IO String
-getStoragePath db = do
-    identifier <- getIdentifier
-    tempPath <- getTemporaryDirectory
-    return $ tempPath </> identifier </> db
-
--- | Stores a value
+-- | Stores a value. Explodes if the store hasn't been
+--   initialized.
 putValue :: Show a => String -> String -> a -> IO ()
-putValue db key value = do
-    kvDir <- getStoragePath db
-    createDirectoryIfMissing True kvDir
-    let fileName = kvDir </> key
-    writeFile fileName $ show value
+putValue store key value = do
+    storePath <- getStoragePath store
+    writeFile (storePath </> key) $ show value
 
--- | Gets a value. Will return Nothing if anything goes wrong.
+-- | Gets a value. Will return Nothing if the key isn't
+--   there.
 getValue :: Read a => String -> String -> IO (Maybe a)
-getValue db key = do
-    kvDir <- getStoragePath db
-    let fileName = kvDir </> key
+getValue store key = do
+    storePath <- getStoragePath store
+    let fileName = storePath </> key
     keyExists <- doesFileExist fileName
     if keyExists
-       then do fileData <- readFile fileName
-               tryData <- try $ readIO fileData
-               case tryData of
-                    Left  _ -> return $ Nothing
-                    Right v -> return $ Just v
+       then readFile fileName >>= return . Just . read
        else return Nothing
-
-getValueDefault :: Read a => a -> String -> String -> IO a
-getValueDefault v db key = fmap (fromMaybe v) (getValue db key)
 
 -- | Delete a value from the store.
 delValue :: String -> String -> IO ()
-delValue db key = do
-    kvDir <- getStoragePath db
-    let fileName = kvDir </> key
-    tryData <- try $ removeFile key
-    case tryData of
-         Left  _ -> return ()
-         Right _ -> return ()
-
--- | Clear an entire store. Try to call this before or after
---   using a store, or both if possible.
-clearAll :: String -> IO ()
-clearAll db = do
-    kvDir <- getStoragePath db
-    createDirectoryIfMissing True kvDir
-    removeDirectoryRecursive kvDir
-
-    -- Remove the program storage if necessary
-    progStorage <- getStoragePath ""
-    contents <- getDirectoryContents progStorage
-    if null $ contents \\ [".", ".."]
-       then removeDirectory progStorage
-       else return ()
+delValue store key = do
+    storePath <- getStoragePath store
+    try . removeFile $ storePath </> key
+    return ()

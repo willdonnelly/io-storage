@@ -12,9 +12,9 @@ and 'delValue' functions allow you to store, retrieve, and delete
 data from the store.
 
 Internally, data is stored within an IORef which is created using the
-'unsafePerformIO hack', but this is not made available outside of the
-library so that it can easily be modified if and when a more 'proper'
-solution is implemented.
+'unsafePerformIO hack', but this is hidden within the library so that
+it can easily be modified if and when a more 'proper' solution is
+implemented.
 -}
 module System.IO.Storage
   ( withStore
